@@ -25,7 +25,6 @@ export const Events: CollectionConfig = {
     commission: true,
     subsection: true,
     speakers: true,
-    certificateTemplate: true,
   },
   admin: {
     useAsTitle: 'title',
@@ -267,12 +266,19 @@ export const Events: CollectionConfig = {
                 },
                 {
                   name: 'certificateTemplate',
-                  type: 'relationship',
+                  type: 'select',
                   label: 'Modelo de Certificado',
-                  relationTo: 'certificate-templates',
+                  defaultValue: 'default',
+                  options: [
+                    { label: 'Padrão', value: 'default' },
+                    { label: 'Curso', value: 'course' },
+                    { label: 'Evento', value: 'event' },
+                    { label: 'Workshop', value: 'workshop' },
+                    { label: 'Seminário', value: 'seminar' },
+                  ],
                   admin: {
                     placeholder: 'Selecione o modelo de certificado',
-                    description: 'Se não selecionado, usará o modelo padrão',
+                    description: 'Modelo de layout do certificado',
                     condition: (data) => data?.hasCertificate === true,
                   },
                 },

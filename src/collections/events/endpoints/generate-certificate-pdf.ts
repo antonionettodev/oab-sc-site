@@ -1,6 +1,6 @@
 import type { Endpoint } from 'payload'
-import { generateCertificatePDF, generateMultipleCertificatesPDF } from '@/lib/pdf/certificate-generator'
-import type { CertificateData, CertificateTemplate } from '@/lib/pdf/certificate-generator'
+import { generateCertificatePDF } from '@/lib/pdf/certificate-generator'
+import type { CertificateData, CertificateTemplateType } from '@/lib/pdf/certificate-generator'
 import { generateQRCodeBase64 } from '@/lib/qrcode'
 import { generateCertificateNumber, generateCertificateHash } from '@/lib/token'
 
@@ -37,44 +37,17 @@ export const generateCertificatePDFEndpoint: Endpoint = {
         )
       }
 
-      // Busca o template do certificado
-      let template: Partial<CertificateTemplate> | undefined
+      // Pega o tipo de template do certificado
+      const templateType = (certificate.templateType as CertificateTemplateType) || 'default'
 
-      const templateData = certificate.template as any
-      if (templateData && typeof templateData !== 'string') {
-        template = {
-          orientation: templateData.orientation,
-          pageSize: templateData.pageSize,
-          backgroundImage: templateData.backgroundImage?.url,
-          logo: templateData.logo?.url,
-          primaryColor: templateData.primaryColor,
-          secondaryColor: templateData.secondaryColor,
-          accentColor: templateData.accentColor,
-          headerText: templateData.headerText,
-          titleText: templateData.titleText,
-          bodyTemplate: templateData.bodyTemplate,
-          footerText: templateData.footerText,
-          showQRCode: templateData.showQRCode,
-          validationUrl: templateData.validationUrl,
-          signatures: templateData.signatures?.map((sig: any) => ({
-            name: sig.name,
-            title: sig.title,
-            signatureImage: sig.signatureImage?.url,
-          })),
-        }
-      }
-
-      // Gera QR Code de validação se necessário
-      let qrCodeBase64: string | undefined
-      if (!template || template.showQRCode !== false) {
-        const validationUrl = template?.validationUrl || 'https://oabsc.org.br/certificados/validar'
-        const qrData = `${validationUrl}?hash=${certificate.validationHash}`
-        qrCodeBase64 = await generateQRCodeBase64(qrData, {
-          width: 200,
-          margin: 1,
-          errorCorrectionLevel: 'M',
-        })
-      }
+      // Gera QR Code de validação
+      const validationUrl = 'https://oabsc.org.br/certificados/validar'
+      const qrData = `${validationUrl}?hash=${certificate.validationHash}`
+      const qrCodeBase64 = await generateQRCodeBase64(qrData, {
+        width: 200,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+      })
 
       // Prepara dados do certificado
       const certificateData: CertificateData = {
@@ -86,12 +59,12 @@ export const generateCertificatePDFEndpoint: Endpoint = {
         eventStartDate: certificate.eventStartDate as string,
         eventEndDate: certificate.eventEndDate as string,
         workload: certificate.workload as string,
-        issuedAt: certificate.issuedAt as string || new Date().toISOString(),
+        issuedAt: (certificate.issuedAt as string) || new Date().toISOString(),
         qrCodeBase64,
       }
 
-      // Gera o PDF
-      const pdfBuffer = await generateCertificatePDF(certificateData, template)
+      // Gera o PDF usando o template fixo
+      const pdfBuffer = await generateCertificatePDF(certificateData, templateType)
 
       // Atualiza estatísticas do certificado
       await payload.update({
@@ -222,22 +195,8 @@ export const issueCertificateEndpoint: Endpoint = {
         })
       }
 
-      // Busca o template do certificado
-      let templateId = event.certificateTemplate
-      if (!templateId) {
-        // Busca template padrão
-        const defaultTemplates = await payload.find({
-          collection: 'certificate-templates',
-          where: {
-            isDefault: { equals: true },
-            status: { equals: 'active' },
-          },
-          limit: 1,
-        })
-        if (defaultTemplates.docs.length > 0) {
-          templateId = defaultTemplates.docs[0].id
-        }
-      }
+      // Usa o template configurado no evento ou o padrão
+      const templateType = (event.certificateTemplate as CertificateTemplateType) || 'default'
 
       // Gera número e hash do certificado
       const year = new Date().getFullYear()
@@ -268,7 +227,7 @@ export const issueCertificateEndpoint: Endpoint = {
           validationHash,
           event: event.id,
           registration: registrationId,
-          template: templateId,
+          templateType,
           participantType: registration.participantType,
           lawyer: registration.lawyer,
           externalParticipant: registration.externalParticipant,
@@ -373,21 +332,8 @@ export const issueBatchCertificatesEndpoint: Endpoint = {
         })
       }
 
-      // Busca template
-      let templateId = event.certificateTemplate
-      if (!templateId) {
-        const defaultTemplates = await payload.find({
-          collection: 'certificate-templates',
-          where: {
-            isDefault: { equals: true },
-            status: { equals: 'active' },
-          },
-          limit: 1,
-        })
-        if (defaultTemplates.docs.length > 0) {
-          templateId = defaultTemplates.docs[0].id
-        }
-      }
+      // Usa o template configurado no evento ou o padrão
+      const templateType = (event.certificateTemplate as CertificateTemplateType) || 'default'
 
       const year = new Date().getFullYear()
       const existingCertsCount = await payload.count({
@@ -419,7 +365,7 @@ export const issueBatchCertificatesEndpoint: Endpoint = {
               validationHash,
               event: event.id,
               registration: registration.id,
-              template: templateId,
+              templateType,
               participantType: registration.participantType,
               lawyer: registration.lawyer,
               externalParticipant: registration.externalParticipant,

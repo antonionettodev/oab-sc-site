@@ -3,26 +3,8 @@ import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from '@
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-interface CertificateTemplate {
-  orientation: 'landscape' | 'portrait'
-  pageSize: 'A4' | 'LETTER'
-  backgroundImage?: string
-  logo?: string
-  primaryColor: string
-  secondaryColor: string
-  accentColor: string
-  headerText: string
-  titleText: string
-  bodyTemplate: string
-  footerText?: string
-  signatures?: Array<{
-    name: string
-    title: string
-    signatureImage?: string
-  }>
-  showQRCode: boolean
-  validationUrl?: string
-}
+// Tipos de templates disponíveis
+export type CertificateTemplateType = 'default' | 'course' | 'event' | 'workshop' | 'seminar'
 
 interface CertificateData {
   certificateNumber: string
@@ -37,29 +19,61 @@ interface CertificateData {
   qrCodeBase64?: string
 }
 
-const defaultTemplate: CertificateTemplate = {
-  orientation: 'landscape',
-  pageSize: 'A4',
-  primaryColor: '#1a365d',
-  secondaryColor: '#2b6cb0',
-  accentColor: '#c9a227',
-  headerText: 'ORDEM DOS ADVOGADOS DO BRASIL - SECCIONAL SANTA CATARINA',
-  titleText: 'CERTIFICADO',
-  bodyTemplate: 'Certificamos que {{participantName}} participou do evento "{{eventTitle}}", realizado em {{eventDate}}, com carga horária de {{workload}}.',
-  showQRCode: true,
+// Templates pré-definidos
+const templates: Record<CertificateTemplateType, {
+  headerText: string
+  titleText: string
+  bodyTemplate: string
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+}> = {
+  default: {
+    headerText: 'ORDEM DOS ADVOGADOS DO BRASIL - SECCIONAL SANTA CATARINA',
+    titleText: 'CERTIFICADO',
+    bodyTemplate: 'Certificamos que {{participantName}} participou do evento "{{eventTitle}}", realizado em {{eventDate}}, com carga horária de {{workload}}.',
+    primaryColor: '#1a365d',
+    secondaryColor: '#2b6cb0',
+    accentColor: '#c9a227',
+  },
+  course: {
+    headerText: 'ORDEM DOS ADVOGADOS DO BRASIL - SECCIONAL SANTA CATARINA',
+    titleText: 'CERTIFICADO DE CONCLUSÃO',
+    bodyTemplate: 'Certificamos que {{participantName}} concluiu com êxito o curso "{{eventTitle}}", realizado no período de {{eventDate}}, com carga horária total de {{workload}}.',
+    primaryColor: '#1a365d',
+    secondaryColor: '#2b6cb0',
+    accentColor: '#c9a227',
+  },
+  event: {
+    headerText: 'ORDEM DOS ADVOGADOS DO BRASIL - SECCIONAL SANTA CATARINA',
+    titleText: 'CERTIFICADO DE PARTICIPAÇÃO',
+    bodyTemplate: 'Certificamos que {{participantName}} participou do evento "{{eventTitle}}", realizado em {{eventDate}}, com carga horária de {{workload}}.',
+    primaryColor: '#1a365d',
+    secondaryColor: '#2b6cb0',
+    accentColor: '#c9a227',
+  },
+  workshop: {
+    headerText: 'ORDEM DOS ADVOGADOS DO BRASIL - SECCIONAL SANTA CATARINA',
+    titleText: 'CERTIFICADO DE PARTICIPAÇÃO',
+    bodyTemplate: 'Certificamos que {{participantName}} participou do workshop "{{eventTitle}}", realizado em {{eventDate}}, com carga horária de {{workload}}.',
+    primaryColor: '#1a365d',
+    secondaryColor: '#2b6cb0',
+    accentColor: '#38a169',
+  },
+  seminar: {
+    headerText: 'ORDEM DOS ADVOGADOS DO BRASIL - SECCIONAL SANTA CATARINA',
+    titleText: 'CERTIFICADO DE PARTICIPAÇÃO',
+    bodyTemplate: 'Certificamos que {{participantName}} participou do seminário "{{eventTitle}}", realizado em {{eventDate}}, com carga horária de {{workload}}.',
+    primaryColor: '#1a365d',
+    secondaryColor: '#2b6cb0',
+    accentColor: '#805ad5',
+  },
 }
 
-const createStyles = (template: CertificateTemplate) =>
+const createStyles = (template: typeof templates.default) =>
   StyleSheet.create({
     page: {
       position: 'relative',
-    },
-    backgroundImage: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
     },
     container: {
       flex: 1,
@@ -86,11 +100,7 @@ const createStyles = (template: CertificateTemplate) =>
     header: {
       alignItems: 'center',
       marginBottom: 20,
-    },
-    logo: {
-      width: 80,
-      height: 80,
-      marginBottom: 15,
+      marginTop: 30,
     },
     headerText: {
       fontSize: 12,
@@ -136,7 +146,7 @@ const createStyles = (template: CertificateTemplate) =>
       flexDirection: 'row',
       justifyContent: 'center',
       marginTop: 40,
-      gap: 60,
+      gap: 80,
     },
     signatureBox: {
       alignItems: 'center',
@@ -145,11 +155,6 @@ const createStyles = (template: CertificateTemplate) =>
     signatureLine: {
       width: 180,
       borderBottom: `1px solid ${template.primaryColor}`,
-      marginBottom: 5,
-    },
-    signatureImage: {
-      width: 100,
-      height: 40,
       marginBottom: 5,
     },
     signatureName: {
@@ -217,10 +222,10 @@ const formatEventDate = (startDate: string, endDate?: string) => {
   return formattedStart
 }
 
-const processBodyTemplate = (template: string, data: CertificateData): string => {
+const processBodyTemplate = (templateText: string, data: CertificateData): string => {
   const eventDate = formatEventDate(data.eventStartDate, data.eventEndDate)
 
-  return template
+  return templateText
     .replace(/\{\{participantName\}\}/g, data.participantName)
     .replace(/\{\{eventTitle\}\}/g, data.eventTitle)
     .replace(/\{\{eventDate\}\}/g, eventDate)
@@ -230,36 +235,41 @@ const processBodyTemplate = (template: string, data: CertificateData): string =>
     .replace(/\{\{certificateNumber\}\}/g, data.certificateNumber)
 }
 
+// Assinaturas padrão da OAB/SC
+const defaultSignatures = [
+  {
+    name: 'Nome do Presidente',
+    title: 'Presidente da OAB/SC',
+  },
+  {
+    name: 'Nome do Diretor',
+    title: 'Diretor da ESA/SC',
+  },
+]
+
 interface CertificateDocumentProps {
   data: CertificateData
-  template?: Partial<CertificateTemplate>
+  templateType?: CertificateTemplateType
+  signatures?: Array<{ name: string; title: string }>
 }
 
 const CertificateDocument: React.FC<CertificateDocumentProps> = ({
   data,
-  template: customTemplate,
+  templateType = 'default',
+  signatures = defaultSignatures,
 }) => {
-  const template = { ...defaultTemplate, ...customTemplate }
+  const template = templates[templateType] || templates.default
   const styles = createStyles(template)
   const bodyText = processBodyTemplate(template.bodyTemplate, data)
 
   return (
     <Document>
-      <Page
-        size={template.pageSize}
-        orientation={template.orientation}
-        style={styles.page}
-      >
-        {template.backgroundImage && (
-          <Image src={template.backgroundImage} style={styles.backgroundImage} />
-        )}
-
+      <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.border} />
         <View style={styles.innerBorder} />
 
         <View style={styles.container}>
           <View style={styles.header}>
-            {template.logo && <Image src={template.logo} style={styles.logo} />}
             <Text style={styles.headerText}>{template.headerText}</Text>
           </View>
 
@@ -273,13 +283,10 @@ const CertificateDocument: React.FC<CertificateDocumentProps> = ({
             <Text style={styles.bodyText}>{bodyText}</Text>
           </View>
 
-          {template.signatures && template.signatures.length > 0 && (
+          {signatures.length > 0 && (
             <View style={styles.signaturesContainer}>
-              {template.signatures.map((sig, index) => (
+              {signatures.map((sig, index) => (
                 <View key={index} style={styles.signatureBox}>
-                  {sig.signatureImage && (
-                    <Image src={sig.signatureImage} style={styles.signatureImage} />
-                  )}
                   <View style={styles.signatureLine} />
                   <Text style={styles.signatureName}>{sig.name}</Text>
                   <Text style={styles.signatureTitle}>{sig.title}</Text>
@@ -291,9 +298,6 @@ const CertificateDocument: React.FC<CertificateDocumentProps> = ({
 
         <View style={styles.footer}>
           <View style={styles.footerLeft}>
-            {template.footerText && (
-              <Text style={styles.footerText}>{template.footerText}</Text>
-            )}
             <Text style={styles.certificateNumber}>
               Certificado Nº {data.certificateNumber}
             </Text>
@@ -301,11 +305,11 @@ const CertificateDocument: React.FC<CertificateDocumentProps> = ({
               Emitido em {format(new Date(data.issuedAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
             </Text>
             <Text style={styles.validationHash}>
-              Hash: {data.validationHash}
+              Código de validação: {data.validationHash}
             </Text>
           </View>
 
-          {template.showQRCode && data.qrCodeBase64 && (
+          {data.qrCodeBase64 && (
             <View style={styles.qrCodeContainer}>
               <Image src={data.qrCodeBase64} style={styles.qrCode} />
               <Text style={styles.qrLabel}>Validar certificado</Text>
@@ -319,39 +323,37 @@ const CertificateDocument: React.FC<CertificateDocumentProps> = ({
 
 export const generateCertificatePDF = async (
   data: CertificateData,
-  template?: Partial<CertificateTemplate>
+  templateType: CertificateTemplateType = 'default',
+  signatures?: Array<{ name: string; title: string }>
 ): Promise<Buffer> => {
-  const buffer = await renderToBuffer(<CertificateDocument data={data} template={template} />)
+  const buffer = await renderToBuffer(
+    <CertificateDocument data={data} templateType={templateType} signatures={signatures} />
+  )
   return Buffer.from(buffer)
 }
 
 export const generateMultipleCertificatesPDF = async (
-  certificates: Array<{ data: CertificateData; template?: Partial<CertificateTemplate> }>
+  certificates: Array<{
+    data: CertificateData
+    templateType?: CertificateTemplateType
+    signatures?: Array<{ name: string; title: string }>
+  }>
 ): Promise<Buffer> => {
   const MultipleCertificatesDocument = () => (
     <Document>
       {certificates.map((cert, index) => {
-        const template = { ...defaultTemplate, ...cert.template }
+        const template = templates[cert.templateType || 'default'] || templates.default
         const styles = createStyles(template)
         const bodyText = processBodyTemplate(template.bodyTemplate, cert.data)
+        const signatures = cert.signatures || defaultSignatures
 
         return (
-          <Page
-            key={index}
-            size={template.pageSize}
-            orientation={template.orientation}
-            style={styles.page}
-          >
-            {template.backgroundImage && (
-              <Image src={template.backgroundImage} style={styles.backgroundImage} />
-            )}
-
+          <Page key={index} size="A4" orientation="landscape" style={styles.page}>
             <View style={styles.border} />
             <View style={styles.innerBorder} />
 
             <View style={styles.container}>
               <View style={styles.header}>
-                {template.logo && <Image src={template.logo} style={styles.logo} />}
                 <Text style={styles.headerText}>{template.headerText}</Text>
               </View>
 
@@ -365,13 +367,10 @@ export const generateMultipleCertificatesPDF = async (
                 <Text style={styles.bodyText}>{bodyText}</Text>
               </View>
 
-              {template.signatures && template.signatures.length > 0 && (
+              {signatures.length > 0 && (
                 <View style={styles.signaturesContainer}>
-                  {template.signatures.map((sig, sigIndex) => (
+                  {signatures.map((sig, sigIndex) => (
                     <View key={sigIndex} style={styles.signatureBox}>
-                      {sig.signatureImage && (
-                        <Image src={sig.signatureImage} style={styles.signatureImage} />
-                      )}
                       <View style={styles.signatureLine} />
                       <Text style={styles.signatureName}>{sig.name}</Text>
                       <Text style={styles.signatureTitle}>{sig.title}</Text>
@@ -383,9 +382,6 @@ export const generateMultipleCertificatesPDF = async (
 
             <View style={styles.footer}>
               <View style={styles.footerLeft}>
-                {template.footerText && (
-                  <Text style={styles.footerText}>{template.footerText}</Text>
-                )}
                 <Text style={styles.certificateNumber}>
                   Certificado Nº {cert.data.certificateNumber}
                 </Text>
@@ -393,11 +389,11 @@ export const generateMultipleCertificatesPDF = async (
                   Emitido em {format(new Date(cert.data.issuedAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                 </Text>
                 <Text style={styles.validationHash}>
-                  Hash: {cert.data.validationHash}
+                  Código de validação: {cert.data.validationHash}
                 </Text>
               </View>
 
-              {template.showQRCode && cert.data.qrCodeBase64 && (
+              {cert.data.qrCodeBase64 && (
                 <View style={styles.qrCodeContainer}>
                   <Image src={cert.data.qrCodeBase64} style={styles.qrCode} />
                   <Text style={styles.qrLabel}>Validar certificado</Text>
@@ -414,4 +410,13 @@ export const generateMultipleCertificatesPDF = async (
   return Buffer.from(buffer)
 }
 
-export type { CertificateData, CertificateTemplate }
+// Exporta os tipos de templates disponíveis para uso em outras partes do código
+export const availableTemplates: { value: CertificateTemplateType; label: string }[] = [
+  { value: 'default', label: 'Padrão' },
+  { value: 'course', label: 'Curso' },
+  { value: 'event', label: 'Evento' },
+  { value: 'workshop', label: 'Workshop' },
+  { value: 'seminar', label: 'Seminário' },
+]
+
+export type { CertificateData }

@@ -26,7 +26,6 @@ import { Speakers } from './collections/events/speakers'
 import { Registrations } from './collections/events/registrations'
 import { ExternalParticipants } from './collections/events/external-participants'
 import { EventRooms } from './collections/events/rooms'
-import { CertificateTemplates } from './collections/events/certificate-templates'
 import { Tickets } from './collections/events/tickets'
 import { Checkins } from './collections/events/checkins'
 import { Certificates } from './collections/events/certificates'
@@ -154,7 +153,6 @@ export default buildConfig({
     Registrations,
     ExternalParticipants,
     EventRooms,
-    CertificateTemplates,
     Tickets,
     Checkins,
     Certificates,

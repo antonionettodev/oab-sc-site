@@ -135,10 +135,17 @@ export const Certificates: CollectionConfig = {
           },
         },
         {
-          name: 'template',
-          type: 'relationship',
+          name: 'templateType',
+          type: 'select',
           label: 'Modelo de Certificado',
-          relationTo: 'certificate-templates',
+          defaultValue: 'default',
+          options: [
+            { label: 'Padrão', value: 'default' },
+            { label: 'Curso', value: 'course' },
+            { label: 'Evento', value: 'event' },
+            { label: 'Workshop', value: 'workshop' },
+            { label: 'Seminário', value: 'seminar' },
+          ],
           admin: {
             placeholder: 'Modelo usado para gerar o certificado',
             width: '50%',
