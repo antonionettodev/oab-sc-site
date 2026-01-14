@@ -24,6 +24,12 @@ import { Lawyers } from './collections/lawyers'
 import { Events } from './collections/events'
 import { Speakers } from './collections/events/speakers'
 import { Registrations } from './collections/events/registrations'
+import { ExternalParticipants } from './collections/events/external-participants'
+import { EventRooms } from './collections/events/rooms'
+import { CertificateTemplates } from './collections/events/certificate-templates'
+import { Tickets } from './collections/events/tickets'
+import { Checkins } from './collections/events/checkins'
+import { Certificates } from './collections/events/certificates'
 import { UrhHonorarium } from './collections/urh-honorarium'
 import { Legislations } from './collections/legislations'
 import { LegislationsTypes } from './collections/legislations/legislations_types'
@@ -146,6 +152,12 @@ export default buildConfig({
     Events,
     Speakers,
     Registrations,
+    ExternalParticipants,
+    EventRooms,
+    CertificateTemplates,
+    Tickets,
+    Checkins,
+    Certificates,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

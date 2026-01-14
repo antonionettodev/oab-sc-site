@@ -8,6 +8,11 @@ import { anyone } from '@/access/anyone'
 import { trimHook } from '@/hooks/trim'
 import { titleField } from '@/fields/title'
 import { generateCheckinPasswordHook } from './hooks/generate-checkin-password'
+import {
+  generateEventQRCodeEndpoint,
+  generateBatchTicketQRCodesEndpoint,
+  issueBatchCertificatesEndpoint,
+} from './endpoints'
 
 export const Events: CollectionConfig = {
   slug: 'events',
@@ -20,6 +25,7 @@ export const Events: CollectionConfig = {
     commission: true,
     subsection: true,
     speakers: true,
+    certificateTemplate: true,
   },
   admin: {
     useAsTitle: 'title',
@@ -28,6 +34,11 @@ export const Events: CollectionConfig = {
   access: {
     read: anyone,
   },
+  endpoints: [
+    generateEventQRCodeEndpoint,
+    generateBatchTicketQRCodesEndpoint,
+    issueBatchCertificatesEndpoint,
+  ],
   fields: [
     {
       type: 'tabs',
@@ -56,10 +67,30 @@ export const Events: CollectionConfig = {
                       options: [
                         { label: 'Evento', value: 'event' },
                         { label: 'Curso', value: 'course' },
+                        { label: 'Conferência', value: 'conference' },
+                        { label: 'Workshop', value: 'workshop' },
+                        { label: 'Seminário', value: 'seminar' },
+                        { label: 'Palestra', value: 'lecture' },
                       ],
                       admin: {
                         placeholder: 'Selecione o tipo',
-                        width: '50%',
+                        width: '33%',
+                      },
+                    },
+                    {
+                      name: 'eventType',
+                      type: 'select',
+                      label: 'Porte do Evento',
+                      required: true,
+                      defaultValue: 'internal',
+                      options: [
+                        { label: 'Interno (Self-service)', value: 'internal' },
+                        { label: 'Externo (Grande Porte)', value: 'external' },
+                      ],
+                      admin: {
+                        placeholder: 'Selecione o porte',
+                        description: 'Interno: participante faz check-in sozinho. Externo: funcionário valida.',
+                        width: '33%',
                       },
                     },
                     {
@@ -75,6 +106,31 @@ export const Events: CollectionConfig = {
                       ],
                       admin: {
                         placeholder: 'Selecione a modalidade',
+                        width: '33%',
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: 'row',
+                  fields: [
+                    {
+                      name: 'hasMultipleRooms',
+                      type: 'checkbox',
+                      label: 'Evento com Múltiplas Salas',
+                      defaultValue: false,
+                      admin: {
+                        description: 'Marque se o evento terá várias salas simultâneas (conferências)',
+                        width: '50%',
+                      },
+                    },
+                    {
+                      name: 'allowExternalParticipants',
+                      type: 'checkbox',
+                      label: 'Permite Participantes Externos',
+                      defaultValue: false,
+                      admin: {
+                        description: 'Permite inscrição de pessoas que não são advogados',
                         width: '50%',
                       },
                     },
@@ -208,6 +264,31 @@ export const Events: CollectionConfig = {
                   type: 'checkbox',
                   label: 'Possui Certificado',
                   defaultValue: false,
+                },
+                {
+                  name: 'certificateTemplate',
+                  type: 'relationship',
+                  label: 'Modelo de Certificado',
+                  relationTo: 'certificate-templates',
+                  admin: {
+                    placeholder: 'Selecione o modelo de certificado',
+                    description: 'Se não selecionado, usará o modelo padrão',
+                    condition: (data) => data?.hasCertificate === true,
+                  },
+                },
+                {
+                  name: 'workload',
+                  type: 'text',
+                  label: 'Carga Horária',
+                  admin: {
+                    placeholder: 'Ex: 8 horas',
+                    description: 'Carga horária que aparecerá no certificado',
+                    condition: (data) => data?.hasCertificate === true,
+                  },
+                  maxLength: 50,
+                  hooks: {
+                    beforeChange: [trimHook],
+                  },
                 },
                 {
                   name: 'included',
@@ -503,10 +584,39 @@ export const Events: CollectionConfig = {
                   label: 'Senha de Check-in',
                   admin: {
                     readOnly: true,
-                    description: 'Código gerado automaticamente para check-in',
+                    description: 'Código gerado automaticamente para check-in (usado em eventos internos)',
                   },
                   hooks: {
                     beforeChange: [generateCheckinPasswordHook],
+                  },
+                },
+                {
+                  name: 'eventQrCode',
+                  type: 'text',
+                  label: 'QR Code do Evento (Base64)',
+                  admin: {
+                    readOnly: true,
+                    description: 'QR Code único do evento para check-in (eventos internos)',
+                    condition: (data) => data?.eventType === 'internal',
+                  },
+                },
+                {
+                  name: 'requirePaymentForCheckin',
+                  type: 'checkbox',
+                  label: 'Exigir Pagamento para Check-in',
+                  defaultValue: true,
+                  admin: {
+                    description: 'Presença só é válida se a inscrição estiver paga',
+                  },
+                },
+                {
+                  name: 'allowMultipleTicketsPerRegistration',
+                  type: 'checkbox',
+                  label: 'Permitir Múltiplos Ingressos por Inscrição',
+                  defaultValue: false,
+                  admin: {
+                    description: 'Uma inscrição pode gerar vários ingressos (para diferentes pessoas)',
+                    condition: (data) => data?.eventType === 'external',
                   },
                 },
               ],
